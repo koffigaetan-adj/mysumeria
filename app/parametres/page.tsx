@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { isEmailConfigured } from "@/lib/email";
 import { isAdminEmail } from "@/lib/admin";
+import { isInstantSyncConfigured } from "@/lib/sync";
 import SettingsForm from "@/app/components/SettingsForm";
 import { ArrowLeftIcon } from "@/app/components/Icons";
 
@@ -13,12 +14,13 @@ export default async function ParametresPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const [user, unparsedCount] = await Promise.all([
+  const [user, unparsedCount, config] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.userId },
       select: { email: true, pinLength: true, notifyOnTransaction: true, monthlyStatement: true, notifyOnLogin: true },
     }),
     prisma.unparsedEmail.count(),
+    prisma.accountConfig.findUnique({ where: { id: 1 }, select: { gmailWatchExpiration: true } }),
   ]);
   if (!user) redirect("/login");
 
@@ -41,6 +43,10 @@ export default async function ParametresPage() {
         unparsedCount={unparsedCount}
         vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || null}
         isAdmin={isAdminEmail(session.email)}
+        instantSync={{
+          configured: isInstantSyncConfigured(),
+          expiration: config?.gmailWatchExpiration?.toISOString() ?? null,
+        }}
       />
     </main>
   );

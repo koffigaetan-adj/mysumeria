@@ -129,6 +129,36 @@ de l'autorisation OAuth, qui reste en lecture seule). Limite Gmail : ~500 mails/
    [vercel.com/docs/cron-jobs](https://vercel.com/docs/cron-jobs) que 2 crons quotidien/mensuel
    restent dans les limites gratuites actuelles.
 
+### 8 bis. Synchronisation toutes les 5 minutes (cron externe gratuit)
+
+Le cron Vercel gratuit ne tourne qu'une fois par jour ; entre deux, la synchro ne se fait que
+quand l'appli est ouverte. Pour des notifications et un solde à jour appli fermée :
+
+1. https://cron-job.org (gratuit) → **Create cronjob**.
+2. URL : `https://TON-APP.vercel.app/api/sync-emails` — Schedule : *Every 5 minutes*.
+3. Advanced → Request method `GET` → Headers : `Authorization` = `Bearer <valeur de CRON_SECRET>`.
+4. **Run now** → statut 200 attendu (401 = secret différent de celui configuré dans Vercel).
+
+### 8 ter. Détection instantanée (Gmail prévient l'appli — recommandé)
+
+Remplace avantageusement le cron externe : Google appelle `/api/gmail/push` à la seconde où un
+mail arrive. Gratuit à ce volume. Dans **Google Cloud Console, le même projet que l'OAuth** :
+
+1. **APIs & Services → Library** → active **Cloud Pub/Sub API**.
+2. **Pub/Sub → Topics → Create topic** : ID `gmail-sumeria`. Note le nom complet affiché,
+   du type `projects/mon-projet-123456/topics/gmail-sumeria`.
+3. Sur ce topic → onglet **Permissions** (ou « Add principal ») → principal
+   `gmail-api-push@system.gserviceaccount.com`, rôle **Pub/Sub Publisher** → Save.
+4. **Pub/Sub → Subscriptions → Create subscription** : ID `gmail-sumeria-push`, topic ci-dessus,
+   **Delivery type : Push**, Endpoint URL :
+   `https://TON-APP.vercel.app/api/gmail/push?token=<valeur de CRON_SECRET>`,
+   Expiration period : **Never expire**. Create.
+5. Vercel → Environment Variables → `GMAIL_PUBSUB_TOPIC` = le nom complet du topic → **Redeploy**.
+6. Dans l'appli (compte admin) → Paramètres › Gmail (administrateur) → **Activer la détection
+   instantanée**. L'abonnement Gmail dure 7 jours et est renouvelé automatiquement à chaque synchro.
+
+Test : fais-toi un virement de 1 € → mail + notification dans les secondes qui suivent, appli fermée.
+
 ### 9. Installer la PWA sur ton téléphone
 
 - **Android (Chrome)** : ouvre le site → menu ⋮ → "Ajouter à l'écran d'accueil" / "Installer".

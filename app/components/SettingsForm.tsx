@@ -60,13 +60,38 @@ export default function SettingsForm({
   unparsedCount,
   vapidPublicKey,
   isAdmin,
+  instantSync,
 }: {
   user: User;
   emailsConfigured: boolean;
   unparsedCount: number;
   vapidPublicKey: string | null;
   isAdmin: boolean;
+  instantSync: { configured: boolean; expiration: string | null };
 }) {
+  const [watchExpiration, setWatchExpiration] = useState<string | null>(instantSync.expiration);
+  const [watchBusy, setWatchBusy] = useState(false);
+  const [watchNote, setWatchNote] = useState<string | null>(null);
+
+  async function renewWatch() {
+    setWatchBusy(true);
+    setWatchNote(null);
+    try {
+      const res = await fetch("/api/gmail/watch", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setWatchNote(data.error ?? "Échec.");
+        return;
+      }
+      setWatchExpiration(data.expiration ?? null);
+      setWatchNote("Détection instantanée activée.");
+    } catch {
+      setWatchNote("Erreur réseau.");
+    } finally {
+      setWatchBusy(false);
+    }
+  }
+  const watchActive = watchExpiration ? new Date(watchExpiration) > new Date() : false;
   const [prefs, setPrefs] = useState({
     notifyOnTransaction: user.notifyOnTransaction,
     monthlyStatement: user.monthlyStatement,
@@ -253,6 +278,26 @@ export default function SettingsForm({
           >
             Reconfigurer l&apos;accès Gmail
           </a>
+
+          <div className="mt-4 border-t border-ink-900/10 pt-3 dark:border-white/10">
+            <p className="text-sm font-medium">Détection instantanée</p>
+            <p className="mt-0.5 text-xs text-ink-900/60 dark:text-white/60">
+              {!instantSync.configured
+                ? "Non configurée : GMAIL_PUBSUB_TOPIC absent (voir README, étape 8 ter)."
+                : watchActive
+                  ? `Active — Gmail prévient l'appli à chaque nouveau mail (renouvelée automatiquement, valable jusqu'au ${new Date(watchExpiration!).toLocaleDateString("fr-FR")}).`
+                  : "Configurée mais pas encore activée sur la boîte Gmail."}
+            </p>
+            <button
+              type="button"
+              onClick={renewWatch}
+              disabled={!instantSync.configured || watchBusy}
+              className="mt-2 w-full rounded-2xl bg-brand-600 py-3 text-sm font-semibold text-white transition hover:bg-brand-500 active:scale-[0.98] disabled:opacity-50"
+            >
+              {watchBusy ? "Activation…" : watchActive ? "Renouveler maintenant" : "Activer la détection instantanée"}
+            </button>
+            {watchNote && <p className="mt-2 text-center text-xs text-brand-700 dark:text-brand-200">{watchNote}</p>}
+          </div>
         </Section>
       )}
     </div>

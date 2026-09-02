@@ -83,6 +83,8 @@ model AccountConfig {
   id               Int      @id @default(1)
   soldeInitial     Decimal  @db.Decimal(12, 2)
   soldeInitialDate DateTime
+  // Fin de validité de l'abonnement Gmail → Pub/Sub (détection instantanée), renouvelé par lib/sync.ts
+  gmailWatchExpiration DateTime?
   updatedAt        DateTime @updatedAt
 }
 
