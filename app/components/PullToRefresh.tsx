@@ -14,7 +14,10 @@ export default function PullToRefresh({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     function onStart(e: TouchEvent) {
-      startY.current = window.scrollY <= 0 ? e.touches[0].clientY : null;
+      // Pas de "tirer pour rafraîchir" si le geste commence dans une liste déjà défilée
+      const region = (e.target as Element | null)?.closest<HTMLElement>("[data-scroll-region]");
+      const insideScrolledRegion = region ? region.scrollTop > 0 : false;
+      startY.current = window.scrollY <= 0 && !insideScrolledRegion ? e.touches[0].clientY : null;
     }
     function onMove(e: TouchEvent) {
       if (startY.current === null) return;

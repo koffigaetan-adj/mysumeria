@@ -75,7 +75,7 @@ export default async function DashboardPage({
   return (
     <SyncProvider>
       <PullToRefresh>
-        <main className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col px-4 pb-8 md:max-w-2xl">
+        <main className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden px-4 md:max-w-2xl">
           <header className="flex items-center justify-between py-4">
             <div>
               <h1 className="font-display text-3xl leading-none">My Sumeria</h1>
@@ -102,7 +102,7 @@ export default async function DashboardPage({
           </nav>
 
           {view === "graphiques" && charts ? (
-            <section className="mt-4 flex flex-col gap-3">
+            <section data-scroll-region className="mt-4 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pb-6">
               <BalanceChart daily={charts.daily} monthly={charts.monthly} />
               <CategoryBars categories={charts.categories} total={charts.monthDebits} />
             </section>
@@ -128,7 +128,8 @@ export default async function DashboardPage({
                 <SearchBox periode={periode} initialQuery={q} />
               </div>
 
-              <section className="mt-4 flex flex-col gap-2">
+              {/* Seule zone défilante : le solde, les onglets et les filtres restent visibles */}
+              <section data-scroll-region className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pb-6">
                 {transactions.length === 0 ? (
                   <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-ink-900/50 dark:bg-ink-800 dark:text-white/50">
                     {q ? `Aucune transaction ne contient « ${q} ».` : "Aucune transaction sur cette période."}
@@ -156,7 +157,7 @@ export default async function DashboardPage({
           )}
 
           {isAdmin && unparsedCount > 0 && (
-            <footer className="mt-auto pt-8 text-center text-xs text-ink-900/40 dark:text-white/40">
+            <footer className="shrink-0 py-2 text-center text-xs text-ink-900/40 dark:text-white/40">
               {unparsedCount} email{unparsedCount > 1 ? "s" : ""} ignoré{unparsedCount > 1 ? "s" : ""} par le parseur —{" "}
               <Link href="/parametres/emails" className="underline">
                 voir

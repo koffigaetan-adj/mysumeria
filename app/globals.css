@@ -55,6 +55,36 @@ body {
   overscroll-behavior-y: contain;
 }
 
+/* Barre de défilement fine et discrète (zones défilantes du dashboard) */
+[data-scroll-region] {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(31, 143, 134, 0.45) transparent;
+  scrollbar-gutter: stable;
+  padding-right: 4px;
+}
+[data-scroll-region]::-webkit-scrollbar {
+  width: 6px;
+}
+[data-scroll-region]::-webkit-scrollbar-track {
+  background: transparent;
+}
+[data-scroll-region]::-webkit-scrollbar-thumb {
+  background: rgba(31, 143, 134, 0.45);
+  border-radius: 9999px;
+}
+[data-scroll-region]::-webkit-scrollbar-thumb:hover {
+  background: rgba(31, 143, 134, 0.8);
+}
+html[data-theme="dark"] [data-scroll-region] {
+  scrollbar-color: rgba(93, 181, 173, 0.4) transparent;
+}
+html[data-theme="dark"] [data-scroll-region]::-webkit-scrollbar-thumb {
+  background: rgba(93, 181, 173, 0.4);
+}
+html[data-theme="dark"] [data-scroll-region]::-webkit-scrollbar-thumb:hover {
+  background: rgba(93, 181, 173, 0.75);
+}
+
 /* Grain léger, comme sur la carte */
 .noise::after {
   content: "";
