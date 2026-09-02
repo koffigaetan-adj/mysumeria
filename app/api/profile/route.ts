@@ -8,10 +8,11 @@ export async function PATCH(request: NextRequest) {
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
-  const data: { notifyOnTransaction?: boolean; monthlyStatement?: boolean; notifyOnLogin?: boolean } = {};
-  if (typeof body.notifyOnTransaction === "boolean") data.notifyOnTransaction = body.notifyOnTransaction;
-  if (typeof body.monthlyStatement === "boolean") data.monthlyStatement = body.monthlyStatement;
-  if (typeof body.notifyOnLogin === "boolean") data.notifyOnLogin = body.notifyOnLogin;
+  const KEYS = ["notifyOnTransaction", "pushOnTransaction", "monthlyStatement", "notifyOnLogin", "pushOnLogin"] as const;
+  const data: Partial<Record<(typeof KEYS)[number], boolean>> = {};
+  for (const key of KEYS) {
+    if (typeof body[key] === "boolean") data[key] = body[key];
+  }
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Rien à modifier" }, { status: 400 });
@@ -20,7 +21,7 @@ export async function PATCH(request: NextRequest) {
   const user = await prisma.user.update({
     where: { id: session.userId },
     data,
-    select: { notifyOnTransaction: true, monthlyStatement: true, notifyOnLogin: true },
+    select: { notifyOnTransaction: true, pushOnTransaction: true, monthlyStatement: true, notifyOnLogin: true, pushOnLogin: true },
   });
   return NextResponse.json(user);
 }

@@ -123,17 +123,20 @@ export async function syncEmails(): Promise<SyncResult> {
   if (notifiable.length > 0) {
     const [{ solde }, users] = await Promise.all([
       getSoldeCourant(),
-      prisma.user.findMany({ where: { notifyOnTransaction: true }, select: { id: true, email: true } }),
+      prisma.user.findMany({
+        where: { OR: [{ notifyOnTransaction: true }, { pushOnTransaction: true }] },
+        select: { id: true, email: true, notifyOnTransaction: true, pushOnTransaction: true },
+      }),
     ]);
     const first = notifiable[0];
     await Promise.all([
       sendTransactionNotification(
-        users.map((u) => u.email),
+        users.filter((u) => u.notifyOnTransaction).map((u) => u.email),
         notifiable,
         solde
       ),
       sendPushToUsers(
-        users.map((u) => u.id),
+        users.filter((u) => u.pushOnTransaction).map((u) => u.id),
         {
           title:
             notifiable.length === 1

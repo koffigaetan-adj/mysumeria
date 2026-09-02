@@ -17,7 +17,15 @@ export default async function ParametresPage() {
   const [user, unparsedCount, config] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.userId },
-      select: { email: true, pinLength: true, notifyOnTransaction: true, monthlyStatement: true, notifyOnLogin: true },
+      select: {
+        email: true,
+        pinLength: true,
+        notifyOnTransaction: true,
+        pushOnTransaction: true,
+        monthlyStatement: true,
+        notifyOnLogin: true,
+        pushOnLogin: true,
+      },
     }),
     prisma.unparsedEmail.count(),
     prisma.accountConfig.findUnique({ where: { id: 1 }, select: { gmailWatchExpiration: true } }),

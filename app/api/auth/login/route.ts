@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createSession } from "@/lib/session";
 import { getLoginContext } from "@/lib/loginContext";
 import { isEmailConfigured, sendLoginAlert } from "@/lib/email";
+import { sendPushToUsers } from "@/lib/push";
 
 // Hash bidon comparé quand l'email est inconnu, pour que la durée de réponse
 // ne révèle pas si l'email existe.
@@ -70,10 +71,20 @@ export async function POST(request: NextRequest) {
 
   await createSession({ userId: user.id, email: user.email });
 
-  // Alerte envoyée après la réponse pour ne pas ralentir la connexion.
+  // Alertes envoyées après la réponse pour ne pas ralentir la connexion.
+  const ctx = getLoginContext(request);
   if (user.notifyOnLogin && isEmailConfigured()) {
-    const ctx = getLoginContext(request);
     after(() => sendLoginAlert(user.email, ctx));
+  }
+  if (user.pushOnLogin) {
+    after(() =>
+      sendPushToUsers([user.id], {
+        title: "Nouvelle connexion",
+        body: `${ctx.device} · ${ctx.location}`,
+        url: "/parametres",
+        tag: "login",
+      })
+    );
   }
 
   return NextResponse.json({ ok: true });

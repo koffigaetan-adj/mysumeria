@@ -5,6 +5,7 @@ import { createSession } from "@/lib/session";
 import { consumeChallenge, getRelyingParty } from "@/lib/webauthn";
 import { getLoginContext } from "@/lib/loginContext";
 import { isEmailConfigured, sendLoginAlert } from "@/lib/email";
+import { sendPushToUsers } from "@/lib/push";
 
 // Connexion par Face ID / empreinte, étape 2 : vérification et ouverture de session.
 export async function POST(request: NextRequest) {
@@ -51,10 +52,20 @@ export async function POST(request: NextRequest) {
     });
     await createSession({ userId: passkey.user.id, email: passkey.user.email });
 
-    if (passkey.user.notifyOnLogin && isEmailConfigured()) {
-      const ctx = getLoginContext(request);
-      const email = passkey.user.email;
+    const ctx = getLoginContext(request);
+    const { email, id: userId, notifyOnLogin, pushOnLogin } = passkey.user;
+    if (notifyOnLogin && isEmailConfigured()) {
       after(() => sendLoginAlert(email, ctx));
+    }
+    if (pushOnLogin) {
+      after(() =>
+        sendPushToUsers([userId], {
+          title: "Nouvelle connexion",
+          body: `${ctx.device} · ${ctx.location}`,
+          url: "/parametres",
+          tag: "login",
+        })
+      );
     }
 
     return NextResponse.json({ ok: true, email: passkey.user.email, pinLength: passkey.user.pinLength });

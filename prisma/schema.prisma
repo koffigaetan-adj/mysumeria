@@ -16,9 +16,11 @@ model User {
   // le bon nombre de cases sur la page de connexion.
   pinLength      Int       @default(8)
   // Préférences d'alertes email (modifiables dans /parametres)
-  notifyOnTransaction Boolean @default(true)
-  monthlyStatement    Boolean @default(true)
-  notifyOnLogin       Boolean @default(true)
+  notifyOnTransaction Boolean @default(true)  // mail
+  pushOnTransaction   Boolean @default(true)  // notification push
+  monthlyStatement    Boolean @default(true)  // mail (PDF)
+  notifyOnLogin       Boolean @default(true)  // mail
+  pushOnLogin         Boolean @default(true)  // notification push
   // Verrouillage anti brute-force : compteur d'échecs consécutifs + date de
   // fin de blocage temporaire (voir app/api/auth/login/route.ts).
   failedAttempts Int       @default(0)
