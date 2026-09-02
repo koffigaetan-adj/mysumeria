@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  pinHash        String
+  // Longueur du code choisi à la création (6 ou 8 chiffres) : sert à afficher
+  // le bon nombre de cases sur la page de connexion.
+  pinLength      Int       @default(8)
+  // Préférences d'alertes email (modifiables dans /parametres)
+  notifyOnTransaction Boolean @default(true)
+  monthlyStatement    Boolean @default(true)
+  notifyOnLogin       Boolean @default(true)
+  // Verrouillage anti brute-force : compteur d'échecs consécutifs + date de
+  // fin de blocage temporaire (voir app/api/auth/login/route.ts).
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+}
+
+model Transaction {
+  id              String          @id @default(cuid())
+  date            DateTime
+  montant         Decimal         @db.Decimal(12, 2)
+  type            TransactionType
+  motif           String?
+  sourceEmailId   String          @unique
+  rawEmailSnippet String
+  createdAt       DateTime        @default(now())
+
+  @@index([date])
+}
+
+// Une seule ligne (id = 1) : le point de départ du calcul de solde.
+// solde courant = soldeInitial + crédits - débits (transactions >= soldeInitialDate)
+model AccountConfig {
+  id               Int      @id @default(1)
+  soldeInitial     Decimal  @db.Decimal(12, 2)
+  soldeInitialDate DateTime
+  updatedAt        DateTime @updatedAt
+}
+
+// Emails qui matchent le filtre expéditeur mais que parseBankEmail n'a pas su lire.
+// On les garde pour debug / pour améliorer le parseur, au lieu de les perdre.
+model UnparsedEmail {
+  id            String   @id @default(cuid())
+  sourceEmailId String   @unique
+  fromAddress   String
+  subject       String
+  snippet       String
+  body          String
+  // Pourquoi l'email n'a pas donné de transaction : parseur en échec,
+  // ou transaction reconnue mais sur un autre compte que BANK_ACCOUNT_NAME.
+  reason        String?
+  receivedAt    DateTime
+  createdAt     DateTime @default(now())
+}
