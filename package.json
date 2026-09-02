@@ -18,6 +18,8 @@
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
     "@prisma/client": "^6.19.3",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.0.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "googleapis": "^178.0.0",
@@ -26,7 +28,8 @@
     "nodemailer": "^9.1.1",
     "pdfkit": "^0.20.2",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
@@ -35,6 +38,7 @@
     "@types/pdfkit": "^0.17.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
+    "@types/web-push": "^3.6.4",
     "prisma": "^6.19.3",
     "sharp": "^0.35.4",
     "tailwindcss": "^4.3.3",

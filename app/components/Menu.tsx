@@ -47,7 +47,7 @@ function Item({
   );
 }
 
-export default function Menu({ periode }: { periode: string }) {
+export default function Menu({ periode, isAdmin }: { periode: string; isAdmin: boolean }) {
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -127,7 +127,7 @@ export default function Menu({ periode }: { periode: string }) {
                 disabled={sending}
               />
               <Item icon={<DownloadIcon />} label="Télécharger le relevé (PDF)" href={`/api/statement-pdf?periode=${periode}`} />
-              <Item icon={<MailIcon />} label="Configurer l'accès Gmail" href="/api/gmail/auth" />
+              {isAdmin && <Item icon={<MailIcon />} label="Configurer l'accès Gmail" href="/api/gmail/auth" />}
             </nav>
 
             {note && (

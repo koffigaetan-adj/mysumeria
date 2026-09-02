@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { isEmailConfigured } from "@/lib/email";
+import { isAdminEmail } from "@/lib/admin";
 import SettingsForm from "@/app/components/SettingsForm";
 import { ArrowLeftIcon } from "@/app/components/Icons";
 
@@ -38,6 +39,8 @@ export default async function ParametresPage() {
         user={user}
         emailsConfigured={isEmailConfigured()}
         unparsedCount={unparsedCount}
+        vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || null}
+        isAdmin={isAdminEmail(session.email)}
       />
     </main>
   );

@@ -33,9 +33,18 @@
 html {
   -webkit-tap-highlight-color: transparent;
   color-scheme: light;
+  /* Graphiques : une seule série, teal validé (contraste ≥ 3:1, chroma ≥ 0.1) sur chaque surface */
+  --viz-series: #0f9e92;
+  --viz-surface: #ffffff;
+  --viz-grid: rgba(7, 20, 20, 0.1);
+  --viz-muted: rgba(7, 20, 20, 0.55);
 }
 html[data-theme="dark"] {
   color-scheme: dark;
+  --viz-series: #1f9d90;
+  --viz-surface: #0c1d1d;
+  --viz-grid: rgba(255, 255, 255, 0.1);
+  --viz-muted: rgba(255, 255, 255, 0.55);
 }
 
 body {

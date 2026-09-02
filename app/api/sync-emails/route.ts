@@ -5,6 +5,9 @@ import { getGmailClient, extractBody, getHeader } from "@/lib/gmail";
 import { parseBankEmail, isTargetAccount } from "@/lib/parseBankEmail";
 import { getSoldeCourant } from "@/lib/balance";
 import { sendTransactionNotification, type EmailTransaction } from "@/lib/email";
+import { sendPushToUsers } from "@/lib/push";
+
+const EUR = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -131,13 +134,28 @@ async function syncEmails() {
   if (notifiable.length > 0) {
     const [{ solde }, users] = await Promise.all([
       getSoldeCourant(),
-      prisma.user.findMany({ where: { notifyOnTransaction: true }, select: { email: true } }),
+      prisma.user.findMany({ where: { notifyOnTransaction: true }, select: { id: true, email: true } }),
     ]);
-    await sendTransactionNotification(
-      users.map((u) => u.email),
-      notifiable,
-      solde
-    );
+    const first = notifiable[0];
+    await Promise.all([
+      sendTransactionNotification(
+        users.map((u) => u.email),
+        notifiable,
+        solde
+      ),
+      sendPushToUsers(
+        users.map((u) => u.id),
+        {
+          title:
+            notifiable.length === 1
+              ? `${first.type === "CREDIT" ? "+" : "−"}${EUR.format(first.montant)} · ${first.motif ?? "Mouvement"}`
+              : `${notifiable.length} nouveaux mouvements`,
+          body: `Nouveau solde : ${EUR.format(solde)}`,
+          url: "/",
+          tag: "transactions",
+        }
+      ),
+    ]);
   }
 
   return {

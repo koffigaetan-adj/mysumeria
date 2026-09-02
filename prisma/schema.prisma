@@ -24,6 +24,35 @@ model User {
   failedAttempts Int       @default(0)
   lockedUntil    DateTime?
   createdAt      DateTime  @default(now())
+
+  passkeys          Passkey[]
+  pushSubscriptions PushSubscription[]
+}
+
+// Clé WebAuthn (Face ID / empreinte / Windows Hello) enregistrée sur un appareil.
+model Passkey {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String    @unique
+  publicKey    Bytes
+  counter      Int       @default(0)
+  transports   String[]
+  deviceName   String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+}
+
+// Abonnement aux notifications push d'un navigateur/téléphone.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
 }
 
 enum TransactionType {
@@ -37,6 +66,10 @@ model Transaction {
   montant         Decimal         @db.Decimal(12, 2)
   type            TransactionType
   motif           String?
+  // Personnalisation par l'utilisateur (Paramètres › clic sur une transaction)
+  label           String?
+  note            String?
+  category        String?
   sourceEmailId   String          @unique
   rawEmailSnippet String
   createdAt       DateTime        @default(now())

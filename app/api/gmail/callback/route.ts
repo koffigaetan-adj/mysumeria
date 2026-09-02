@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOAuth2Client } from "@/lib/gmail";
+import { getSession } from "@/lib/session";
+import { isAdminEmail } from "@/lib/admin";
 
 // Callback OAuth : échange le code contre les tokens et AFFICHE le refresh
 // token pour que tu le copies dans la variable d'environnement GMAIL_REFRESH_TOKEN.
 // (Il n'est volontairement pas stocké en base : une seule boîte Gmail est lue,
 // l'env var suffit et reste hors du code.)
 export async function GET(request: NextRequest) {
+  const session = await getSession();
+  if (!isAdminEmail(session?.email)) {
+    return html(`<h1>Accès refusé</h1><p>Cette action est réservée à l'administrateur.</p>`);
+  }
+
   const code = request.nextUrl.searchParams.get("code");
   const error = request.nextUrl.searchParams.get("error");
 

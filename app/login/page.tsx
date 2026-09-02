@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import PinInput from "@/app/components/PinInput";
+import PasskeyLoginButton from "@/app/components/PasskeyLoginButton";
 import { readSavedLogin, writeSavedLogin } from "@/lib/loginStorage";
 
 const DEFAULT_PIN_LENGTH = 8;
@@ -143,6 +144,8 @@ export default function LoginPage() {
         >
           {loading ? "Connexion..." : "Se connecter"}
         </button>
+
+        <PasskeyLoginButton email={email} disabled={loading} onError={setError} />
       </form>
 
       {error && (

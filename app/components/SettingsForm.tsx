@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import PinInput from "@/app/components/PinInput";
+import PasskeySection from "@/app/components/PasskeySection";
+import PushSection from "@/app/components/PushSection";
 import { readSavedLogin, writeSavedLogin } from "@/lib/loginStorage";
 
 type User = {
@@ -55,10 +58,14 @@ export default function SettingsForm({
   user,
   emailsConfigured,
   unparsedCount,
+  vapidPublicKey,
+  isAdmin,
 }: {
   user: User;
   emailsConfigured: boolean;
   unparsedCount: number;
+  vapidPublicKey: string | null;
+  isAdmin: boolean;
 }) {
   const [prefs, setPrefs] = useState({
     notifyOnTransaction: user.notifyOnTransaction,
@@ -157,6 +164,14 @@ export default function SettingsForm({
         {prefsNote && <p className="mt-2 text-xs text-red-500">{prefsNote}</p>}
       </Section>
 
+      <Section title="Notifications push">
+        <PushSection vapidPublicKey={vapidPublicKey} />
+      </Section>
+
+      <Section title="Face ID / empreinte">
+        <PasskeySection />
+      </Section>
+
       <Section title="Profil">
         <p className="text-sm">
           <span className="text-ink-900/50 dark:text-white/50">Email : </span>
@@ -219,19 +234,27 @@ export default function SettingsForm({
         </form>
       </Section>
 
-      <Section title="Gmail">
-        <p className="text-xs text-ink-900/60 dark:text-white/60">
-          {unparsedCount > 0
-            ? `${unparsedCount} email${unparsedCount > 1 ? "s" : ""} non reconnu${unparsedCount > 1 ? "s" : ""} par le parseur (table UnparsedEmail, visible avec npm run db:studio).`
-            : "Tous les emails synchronisés ont été reconnus."}
-        </p>
-        <a
-          href="/api/gmail/auth"
-          className="mt-3 block rounded-2xl bg-ink-900/5 py-3 text-center text-sm font-medium transition hover:bg-ink-900/10 dark:bg-white/10 dark:hover:bg-white/15"
-        >
-          Reconfigurer l&apos;accès Gmail
-        </a>
-      </Section>
+      {isAdmin && (
+        <Section title="Gmail (administrateur)">
+          <p className="text-xs text-ink-900/60 dark:text-white/60">
+            {unparsedCount > 0
+              ? `${unparsedCount} email${unparsedCount > 1 ? "s" : ""} non transformé${unparsedCount > 1 ? "s" : ""} en transaction.`
+              : "Tous les emails synchronisés ont été reconnus."}
+          </p>
+          <Link
+            href="/parametres/emails"
+            className="mt-3 block rounded-2xl bg-ink-900/5 py-3 text-center text-sm font-medium transition hover:bg-ink-900/10 dark:bg-white/10 dark:hover:bg-white/15"
+          >
+            Emails ignorés{unparsedCount > 0 ? ` (${unparsedCount})` : ""}
+          </Link>
+          <a
+            href="/api/gmail/auth"
+            className="mt-2 block rounded-2xl bg-ink-900/5 py-3 text-center text-sm font-medium transition hover:bg-ink-900/10 dark:bg-white/10 dark:hover:bg-white/15"
+          >
+            Reconfigurer l&apos;accès Gmail
+          </a>
+        </Section>
+      )}
     </div>
   );
 }

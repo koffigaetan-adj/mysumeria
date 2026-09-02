@@ -104,6 +104,15 @@ de l'autorisation OAuth, qui reste en lecture seule). Limite Gmail : ~500 mails/
 5. Laisse `GMAIL_APP_PASSWORD` vide pour désactiver complètement les emails (le reste de
    l'app fonctionne sans).
 
+### 7 bis. Notifications push & Face ID (optionnel)
+
+- **Push** : génère une paire de clés avec `npx web-push generate-vapid-keys` → `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+  `VAPID_PRIVATE_KEY`, et `VAPID_SUBJECT="mailto:ton.compte@gmail.com"`. Ensuite, sur le téléphone, l'appli
+  installée → Paramètres › Notifications push → activer. (Indisponible en `npm run dev`, le service
+  worker n'y est pas actif.)
+- **Face ID / empreinte** : rien à configurer ; Paramètres › Face ID / empreinte → « Ajouter cet appareil ».
+  Les clés sont liées au domaine (localhost ≠ ton-app.vercel.app) : enregistre l'appareil sur l'URL de prod.
+
 ### 8. Déployer sur Vercel
 
 1. Pousse le projet sur GitHub (repo **privé**).
@@ -111,7 +120,8 @@ de l'autorisation OAuth, qui reste en lecture seule). Limite Gmail : ~500 mails/
 3. **Settings → Environment Variables** : ajoute TOUTES les variables du `.env`
    (`DATABASE_URL`, `DIRECT_URL`, `SESSION_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
    `GOOGLE_REDIRECT_URI` ← avec l'URL **de prod**, `GMAIL_REFRESH_TOKEN`, `BANK_ALERT_SENDER`,
-   `BANK_ACCOUNT_NAME`, `CRON_SECRET`, `GMAIL_SMTP_USER`, `GMAIL_APP_PASSWORD`).
+   `BANK_ACCOUNT_NAME`, `ADMIN_EMAIL`, `CRON_SECRET`, `GMAIL_SMTP_USER`, `GMAIL_APP_PASSWORD`,
+   `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`).
 4. Ajoute l'URL de prod dans les **redirect URIs** Google (étape 3.4).
 5. Les crons (`vercel.json`) tournent : synchro 1×/jour à 7h UTC, relevé mensuel le 1er du
    mois à 8h UTC. Vercel envoie automatiquement `Authorization: Bearer $CRON_SECRET`.
