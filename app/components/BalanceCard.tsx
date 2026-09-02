@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSync } from "@/app/components/SyncProvider";
 import type { MonthStats } from "@/lib/balance";
 import { AlertIcon } from "@/app/components/Icons";
@@ -39,6 +39,43 @@ function EyeIcon({ off }: { off: boolean }) {
   );
 }
 
+/** Fait défiler `value` depuis sa précédente valeur affichée (pas au premier rendu). */
+function useAnimatedNumber(value: number, durationMs = 700): number {
+  const [display, setDisplay] = useState(value);
+  const displayRef = useRef(value);
+  const frameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    const from = displayRef.current;
+    const to = value;
+    if (from === to) return;
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      displayRef.current = to;
+      setDisplay(to);
+      return;
+    }
+
+    const start = performance.now();
+    function tick(now: number) {
+      const t = Math.min(1, (now - start) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out
+      const next = from + (to - from) * eased;
+      displayRef.current = next;
+      setDisplay(next);
+      if (t < 1) frameRef.current = requestAnimationFrame(tick);
+    }
+    frameRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    };
+  }, [value, durationMs]);
+
+  return display;
+}
+
 export default function BalanceCard({
   soldeEur,
   configured,
@@ -72,6 +109,7 @@ export default function BalanceCard({
 
   const mask = (s: string) => (hidden ? "••••" : s);
   const delta = stats.prevDebits > 0 ? ((stats.debits - stats.prevDebits) / stats.prevDebits) * 100 : null;
+  const animatedSolde = useAnimatedNumber(soldeEur);
 
   return (
     <section className="noise relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-500 via-brand-700 to-brand-900 p-6 text-white shadow-xl shadow-brand-900/30">
@@ -105,8 +143,8 @@ export default function BalanceCard({
           </button>
         </div>
 
-        <p className="mt-2 font-display text-[44px] leading-none tracking-tight">{mask(EUR.format(soldeEur))}</p>
-        <p className="mt-2 text-sm text-white/75">≈ {mask(XOF.format(soldeEur * EUR_TO_XOF))}</p>
+        <p className="mt-2 font-display text-[44px] leading-none tracking-tight">{mask(EUR.format(animatedSolde))}</p>
+        <p className="mt-2 text-sm text-white/75">≈ {mask(XOF.format(animatedSolde * EUR_TO_XOF))}</p>
 
         <div className="mt-5 flex gap-2 text-xs">
           <span className="rounded-full bg-white/15 px-3 py-1.5">Ce mois : +{mask(EUR.format(stats.credits))}</span>
