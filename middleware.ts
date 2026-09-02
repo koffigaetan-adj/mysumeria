@@ -22,8 +22,9 @@ export async function middleware(request: NextRequest) {
 export const config = {
   // Tout est protégé SAUF : assets Next, login, routes d'auth,
   // /api/sync-emails et /api/monthly-statement (gèrent leur propre auth : session OU secret cron),
+  // /api/gmail/push (webhook Google Pub/Sub, authentifié par ?token=),
   // manifest / icônes / service worker (nécessaires à la PWA avant connexion).
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|login|api/auth/|api/sync-emails|api/monthly-statement|manifest.webmanifest|icons/|sw.js|workbox-).*)",
+    "/((?!_next/static|_next/image|favicon.ico|login|api/auth/|api/sync-emails|api/monthly-statement|api/gmail/push|manifest.webmanifest|icons/|sw.js|workbox-|worker-).*)",
   ],
 };

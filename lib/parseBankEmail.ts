@@ -126,6 +126,20 @@ export function parseBankEmail(
   return null;
 }
 
+/**
+ * Alertes Sumeria qui ne correspondent à aucun mouvement d'argent (paiement refusé,
+ * plafond, etc.). On les reconnaît pour les classer avec une raison explicite plutôt
+ * que "non reconnu par le parseur".
+ */
+export function describeNonTransactionAlert(subject: string, body: string): string | null {
+  const text = `${subject} ${body}`;
+  if (/solde insuffisant/i.test(text)) return "Alerte sans mouvement : paiement refusé (solde insuffisant)";
+  if (/paiement refus|transaction refus|carte refus/i.test(text)) return "Alerte sans mouvement : paiement refusé";
+  if (/plafond/i.test(text)) return "Alerte sans mouvement : plafond de carte";
+  if (/code (pin|secret) (erron|incorrect)/i.test(text)) return "Alerte sans mouvement : code carte erroné";
+  return null;
+}
+
 function normalizeAccountName(name: string): string {
   return name
     .normalize("NFD")

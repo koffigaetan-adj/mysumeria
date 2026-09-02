@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getGmailClient, extractBody, getHeader } from "@/lib/gmail";
-import { parseBankEmail, isTargetAccount } from "@/lib/parseBankEmail";
+import { parseBankEmail, isTargetAccount, describeNonTransactionAlert } from "@/lib/parseBankEmail";
 import { getSoldeCourant } from "@/lib/balance";
 import { sendTransactionNotification, type EmailTransaction } from "@/lib/email";
 import { sendPushToUsers } from "@/lib/push";
@@ -95,7 +95,7 @@ export async function syncEmails(): Promise<SyncResult> {
         notifiable.push({ date: parsed.date, montant: parsed.montant, type: parsed.type, motif: parsed.motif });
       } else {
         const reason = !parsed
-          ? "Email non reconnu par le parseur"
+          ? (describeNonTransactionAlert(subject, body) ?? "Email non reconnu par le parseur")
           : !parsed.compteName
             ? "Compte non détecté dans l'email"
             : `Transaction sur un autre compte : « ${parsed.compteName} »`;

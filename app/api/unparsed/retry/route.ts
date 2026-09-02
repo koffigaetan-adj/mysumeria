@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { parseBankEmail, isTargetAccount } from "@/lib/parseBankEmail";
+import { parseBankEmail, isTargetAccount, describeNonTransactionAlert } from "@/lib/parseBankEmail";
 import { isAdminEmail } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export async function POST() {
   for (const email of emails) {
     const parsed = parseBankEmail(email.subject, email.body, email.receivedAt, targetAccount);
     const reason = !parsed
-      ? "Email non reconnu par le parseur"
+      ? (describeNonTransactionAlert(email.subject, email.body) ?? "Email non reconnu par le parseur")
       : !parsed.compteName
         ? "Compte non détecté dans l'email"
         : !isTargetAccount(parsed.compteName, targetAccount)
