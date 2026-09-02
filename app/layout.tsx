@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans, DM_Serif_Display } from "next/font/google";
+import IdleLock from "@/app/components/IdleLock";
+import { SPLASH_SIZES, splashMedia, splashUrl } from "@/lib/splash";
 import "./globals.css";
 
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans" });
@@ -16,6 +18,7 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "My Sumeria",
+    startupImage: SPLASH_SIZES.map((s) => ({ url: splashUrl(s), media: splashMedia(s) })),
   },
   icons: {
     icon: "/icons/icon-192.png",
@@ -43,7 +46,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       {/* suppressHydrationWarning : des extensions (ColorZilla, Grammarly…) ajoutent des attributs sur <body> */}
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <IdleLock />
+        {children}
+      </body>
     </html>
   );
 }

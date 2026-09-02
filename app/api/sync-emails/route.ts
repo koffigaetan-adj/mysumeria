@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { syncEmails } from "@/lib/sync";
+import { reportHealthIssue } from "@/lib/health";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -25,6 +26,7 @@ async function handle(request: NextRequest) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[sync-emails] Échec de la synchronisation:", e);
+    await reportHealthIssue("Synchronisation Gmail en échec", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

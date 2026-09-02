@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getMonthStats, getSoldeCourant } from "@/lib/balance";
 import { getChartData } from "@/lib/charts";
+import { detectSubscriptions } from "@/lib/subscriptions";
 import { categorize } from "@/lib/categories";
 import { type Periode, parsePeriode, periodeStart } from "@/lib/period";
 import { getSession } from "@/lib/session";
@@ -11,13 +12,18 @@ import PullToRefresh from "@/app/components/PullToRefresh";
 import BalanceCard from "@/app/components/BalanceCard";
 import BalanceChart from "@/app/components/BalanceChart";
 import CategoryBars from "@/app/components/CategoryBars";
+import SubscriptionsCard from "@/app/components/SubscriptionsCard";
 import SearchBox from "@/app/components/SearchBox";
 import Menu from "@/app/components/Menu";
 import TransactionItem from "@/app/components/TransactionItem";
 
 export const dynamic = "force-dynamic";
 
-const DATE_FMT = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+const TZ = "Europe/Paris";
+const DATE_FMT = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: TZ });
+const DAY_FMT = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "short", timeZone: TZ });
+const DAY_FMT_YEAR = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: TZ });
+const TIME_FMT = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
 
 const FILTRES: Array<{ key: Periode; label: string }> = [
   { key: "mois", label: "Ce mois-ci" },
@@ -34,6 +40,20 @@ function filterHref(periode: Periode, q: string, view: string): string {
   return qs ? `/?${qs}` : "/";
 }
 
+/** Clé de jour (YYYY-MM-DD) dans le fuseau de Paris, quel que soit celui du serveur. */
+function dayKey(d: Date): string {
+  return d.toLocaleDateString("fr-CA", { timeZone: TZ });
+}
+
+function dayLabel(d: Date, now: Date): string {
+  const key = dayKey(d);
+  if (key === dayKey(now)) return "Aujourd'hui";
+  if (key === dayKey(new Date(now.getTime() - 24 * 60 * 60 * 1000))) return "Hier";
+  const sameYear = key.slice(0, 4) === dayKey(now).slice(0, 4);
+  const label = (sameYear ? DAY_FMT : DAY_FMT_YEAR).format(d);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -44,8 +64,9 @@ export default async function DashboardPage({
   const q = (params.q ?? "").trim();
   const view = params.vue === "graphiques" ? "graphiques" : "liste";
   const start = periodeStart(periode);
+  const now = new Date();
 
-  const [session, { solde, configured }, stats, transactions, unparsedCount, charts] = await Promise.all([
+  const [session, { solde, configured }, stats, transactions, unparsedCount, charts, subscriptions] = await Promise.all([
     getSession(),
     getSoldeCourant(),
     getMonthStats(),
@@ -66,11 +87,21 @@ export default async function DashboardPage({
       take: 200,
     }),
     prisma.unparsedEmail.count(),
-    view === "graphiques" ? getChartData() : Promise.resolve(null),
+    view === "graphiques" ? getChartData(now) : Promise.resolve(null),
+    view === "graphiques" ? detectSubscriptions(now) : Promise.resolve(null),
   ]);
 
   const accountName = process.env.BANK_ACCOUNT_NAME;
   const isAdmin = isAdminEmail(session?.email);
+
+  // Regroupement par jour (la liste est déjà triée par date décroissante)
+  const groups: Array<{ key: string; label: string; items: typeof transactions }> = [];
+  for (const t of transactions) {
+    const key = dayKey(t.date);
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.items.push(t);
+    else groups.push({ key, label: dayLabel(t.date, now), items: [t] });
+  }
 
   return (
     <SyncProvider>
@@ -86,7 +117,6 @@ export default async function DashboardPage({
 
           <BalanceCard soldeEur={solde} configured={configured} stats={stats} />
 
-          {/* Liste / Graphiques */}
           <nav className="mt-5 flex gap-1 rounded-full bg-white p-1 dark:bg-ink-800">
             {(["liste", "graphiques"] as const).map((v) => (
               <Link
@@ -105,6 +135,7 @@ export default async function DashboardPage({
             <section data-scroll-region className="mt-4 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pb-6">
               <BalanceChart daily={charts.daily} monthly={charts.monthly} />
               <CategoryBars categories={charts.categories} total={charts.monthDebits} />
+              {subscriptions && <SubscriptionsCard items={subscriptions.items} monthlyTotal={subscriptions.monthlyTotal} />}
             </section>
           ) : (
             <>
@@ -129,27 +160,37 @@ export default async function DashboardPage({
               </div>
 
               {/* Seule zone défilante : le solde, les onglets et les filtres restent visibles */}
-              <section data-scroll-region className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pb-6">
-                {transactions.length === 0 ? (
+              <section data-scroll-region className="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-6">
+                {groups.length === 0 ? (
                   <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-ink-900/50 dark:bg-ink-800 dark:text-white/50">
                     {q ? `Aucune transaction ne contient « ${q} ».` : "Aucune transaction sur cette période."}
                   </p>
                 ) : (
-                  transactions.map((t) => (
-                    <TransactionItem
-                      key={t.id}
-                      t={{
-                        id: t.id,
-                        dateLabel: DATE_FMT.format(t.date),
-                        montant: Number(t.montant),
-                        type: t.type,
-                        motif: t.motif,
-                        label: t.label,
-                        note: t.note,
-                        category: t.category,
-                        autoCategory: categorize(t.label ?? t.motif, null),
-                      }}
-                    />
+                  groups.map((g) => (
+                    <div key={g.key} className="mb-3">
+                      <h3 className="sticky top-0 z-10 bg-brand-50/95 px-1 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-900/50 backdrop-blur dark:bg-ink-900/95 dark:text-white/50">
+                        {g.label}
+                      </h3>
+                      <div className="flex flex-col gap-2">
+                        {g.items.map((t) => (
+                          <TransactionItem
+                            key={t.id}
+                            t={{
+                              id: t.id,
+                              dateLabel: DATE_FMT.format(t.date),
+                              timeLabel: TIME_FMT.format(t.date),
+                              montant: Number(t.montant),
+                              type: t.type,
+                              motif: t.motif,
+                              label: t.label,
+                              note: t.note,
+                              category: t.category,
+                              autoCategory: categorize(t.label ?? t.motif, null),
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   ))
                 )}
               </section>

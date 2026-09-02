@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import PinInput from "@/app/components/PinInput";
 import PasskeyLoginButton from "@/app/components/PasskeyLoginButton";
 import { readSavedLogin, writeSavedLogin } from "@/lib/loginStorage";
+import { markActive } from "@/lib/idle";
 
 const DEFAULT_PIN_LENGTH = 8;
 
@@ -27,11 +28,15 @@ export default function LoginPage() {
   const [pinLength, setPinLength] = useState(DEFAULT_PIN_LENGTH);
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const submitting = useRef(false);
 
   // Email mémorisé → champ grisé, et nombre de cases connu tout de suite.
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("verrouille") === "1") {
+      setInfo("Session verrouillée après 30 min d'inactivité — reconnecte-toi.");
+    }
     const saved = readSavedLogin();
     if (!saved) return;
     setEmail(saved.email);
@@ -65,6 +70,7 @@ export default function LoginPage() {
 
       if (res.ok) {
         writeSavedLogin({ email, pinLength });
+        markActive();
         // Navigation complète (pas router.push) : garantit que le cookie de session
         // est pris en compte et évite la course push/refresh qui annulait la redirection.
         window.location.assign("/");
@@ -148,6 +154,9 @@ export default function LoginPage() {
         <PasskeyLoginButton email={email} disabled={loading} onError={setError} />
       </form>
 
+      {info && !error && (
+        <p className="mt-4 rounded-2xl bg-brand-500/10 px-4 py-3 text-center text-sm text-brand-800 dark:text-brand-200">{info}</p>
+      )}
       {error && (
         <p className="mt-4 rounded-2xl bg-red-500/10 px-4 py-3 text-center text-sm font-medium text-red-600 dark:text-red-300">
           {error}

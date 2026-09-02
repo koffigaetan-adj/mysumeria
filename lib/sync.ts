@@ -4,6 +4,7 @@ import { parseBankEmail, isTargetAccount, describeNonTransactionAlert } from "@/
 import { getSoldeCourant } from "@/lib/balance";
 import { sendTransactionNotification, type EmailTransaction } from "@/lib/email";
 import { sendPushToUsers } from "@/lib/push";
+import { markSyncSuccess, reportHealthIssue } from "@/lib/health";
 
 const EUR = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 const MAX_MESSAGES_PER_SYNC = 50;
@@ -150,7 +151,7 @@ export async function syncEmails(): Promise<SyncResult> {
     ]);
   }
 
-  await ensureGmailWatch();
+  await Promise.all([ensureGmailWatch(), markSyncSuccess()]);
 
   return {
     totalMatchingFilter: messageIds.length,
@@ -193,6 +194,11 @@ export async function ensureGmailWatch(): Promise<void> {
     const renewed = await renewGmailWatch();
     console.info(`[gmail-watch] Abonnement renouvelé jusqu'au ${renewed?.toISOString()}`);
   } catch (e) {
-    console.error("[gmail-watch] Renouvellement impossible :", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    await reportHealthIssue(
+      "Détection instantanée : renouvellement Gmail impossible",
+      `${msg}\n\nSans renouvellement, Gmail cessera de prévenir l'appli à l'expiration (7 jours). ` +
+        "Vérifie le topic Pub/Sub (GMAIL_PUBSUB_TOPIC) et les droits de gmail-api-push@system.gserviceaccount.com."
+    );
   }
 }

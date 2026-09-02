@@ -87,6 +87,9 @@ model AccountConfig {
   soldeInitialDate DateTime
   // Fin de validité de l'abonnement Gmail → Pub/Sub (détection instantanée), renouvelé par lib/sync.ts
   gmailWatchExpiration DateTime?
+  // Suivi de santé : dernière synchro réussie, dernière alerte envoyée à l'admin (anti-spam 24 h)
+  lastSyncAt        DateTime?
+  lastHealthAlertAt DateTime?
   updatedAt        DateTime @updatedAt
 }
 

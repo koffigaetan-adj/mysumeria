@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { syncEmails } from "@/lib/sync";
+import { reportHealthIssue } from "@/lib/health";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -24,6 +25,7 @@ export async function POST(request: NextRequest) {
       console.info(`[gmail-push] Synchro : ${result.transactionsCreated} transaction(s), ${result.storedAsUnparsed} ignoré(s)`);
     } catch (e) {
       console.error("[gmail-push] Échec de la synchronisation :", e);
+      await reportHealthIssue("Synchronisation Gmail en échec (webhook)", e instanceof Error ? e.message : String(e));
     }
   });
 

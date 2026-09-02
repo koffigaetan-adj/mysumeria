@@ -2,21 +2,23 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CATEGORIES } from "@/lib/categories";
-import { ArrowDownLeftIcon, ArrowUpRightIcon, XIcon } from "@/app/components/Icons";
+import { CATEGORIES, type Category } from "@/lib/categories";
+import { XIcon } from "@/app/components/Icons";
+import CategoryAvatar from "@/app/components/CategoryAvatar";
 
 const EUR = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 
 export type TransactionView = {
   id: string;
   dateLabel: string;
+  timeLabel: string;
   montant: number;
   type: "CREDIT" | "DEBIT";
   motif: string | null;
   label: string | null;
   note: string | null;
   category: string | null;
-  autoCategory: string;
+  autoCategory: Category;
 };
 
 export default function TransactionItem({ t }: { t: TransactionView }) {
@@ -30,7 +32,7 @@ export default function TransactionItem({ t }: { t: TransactionView }) {
 
   const credit = t.type === "CREDIT";
   const displayName = t.label ?? t.motif ?? "Motif inconnu";
-  const displayCategory = t.category ?? t.autoCategory;
+  const displayCategory = ((t.category as Category | null) ?? t.autoCategory) satisfies Category;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -61,20 +63,14 @@ export default function TransactionItem({ t }: { t: TransactionView }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 text-left transition active:scale-[0.99] dark:bg-ink-800"
+        className="flex w-full items-center justify-between gap-3 rounded-2xl bg-white px-3.5 py-3 text-left transition active:scale-[0.99] dark:bg-ink-800"
       >
         <div className="flex min-w-0 items-center gap-3">
-          <span
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-              credit ? "bg-brand-500/15 text-brand-700 dark:text-brand-200" : "bg-red-500/10 text-red-600 dark:text-red-300"
-            }`}
-          >
-            {credit ? <ArrowDownLeftIcon className="h-4 w-4" /> : <ArrowUpRightIcon className="h-4 w-4" />}
-          </span>
+          <CategoryAvatar category={displayCategory} name={displayName} type={t.type} />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{displayName}</p>
             <p className="truncate text-xs text-ink-900/50 dark:text-white/50">
-              {t.dateLabel}
+              {t.timeLabel}
               {!credit && <> · {displayCategory}</>}
               {t.note && <> · {t.note}</>}
             </p>
@@ -94,13 +90,18 @@ export default function TransactionItem({ t }: { t: TransactionView }) {
             className="relative w-full max-w-md rounded-t-3xl bg-brand-50 p-5 pb-8 shadow-2xl sm:rounded-3xl dark:bg-ink-800"
           >
             <div className="mb-4 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm text-ink-900/50 dark:text-white/50">{t.motif ?? "Motif inconnu"}</p>
-                <p className={`text-2xl font-semibold ${credit ? "text-brand-700 dark:text-brand-200" : "text-red-600 dark:text-red-300"}`}>
-                  {credit ? "+" : "−"}
-                  {EUR.format(t.montant)}
-                </p>
-                <p className="text-xs text-ink-900/50 dark:text-white/50">{t.dateLabel}</p>
+              <div className="flex min-w-0 items-center gap-3">
+                <CategoryAvatar category={displayCategory} name={displayName} type={t.type} />
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-ink-900/50 dark:text-white/50">{t.motif ?? "Motif inconnu"}</p>
+                  <p className={`text-2xl font-semibold ${credit ? "text-brand-700 dark:text-brand-200" : "text-red-600 dark:text-red-300"}`}>
+                    {credit ? "+" : "−"}
+                    {EUR.format(t.montant)}
+                  </p>
+                  <p className="text-xs text-ink-900/50 dark:text-white/50">
+                    {t.dateLabel} à {t.timeLabel}
+                  </p>
+                </div>
               </div>
               <button type="button" onClick={() => setOpen(false)} aria-label="Fermer" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-ink-900/5 dark:hover:bg-white/10">
                 <XIcon />

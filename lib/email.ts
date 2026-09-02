@@ -105,6 +105,18 @@ export async function sendTransactionNotification(
   await send({ to, subject, html });
 }
 
+/** Alerte technique à l'administrateur (synchro en échec, abonnement Gmail non renouvelé…). */
+export async function sendAdminAlert(to: string[], subject: string, detail: string): Promise<SendResult> {
+  if (to.length === 0) return { ok: false, error: "Aucun administrateur configuré" };
+  const html = wrapEmail(
+    "Alerte technique",
+    `<p style="font-size:14px;">${escapeHtml(subject)}</p>
+     <pre style="white-space:pre-wrap;background:#f1f5f9;border-radius:8px;padding:12px;font-size:12px;color:#334155;">${escapeHtml(detail)}</pre>
+     <p style="font-size:13px;color:#64748b;">Vérifie les logs Vercel et, si besoin, Paramètres › Administration › Gmail &amp; parseur. Une seule alerte par 24 h.</p>`
+  );
+  return send({ to, subject: `⚠ ${subject} — My Sumeria`, html });
+}
+
 /** Alerte de nouvelle connexion (date, appareil, localisation approximative, IP). */
 export async function sendLoginAlert(
   to: string,

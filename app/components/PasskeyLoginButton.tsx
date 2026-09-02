@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { browserSupportsWebAuthn, startAuthentication } from "@simplewebauthn/browser";
 import { writeSavedLogin } from "@/lib/loginStorage";
+import { markActive } from "@/lib/idle";
 import { PASSKEY_FLAG } from "@/app/components/PasskeySection";
 
 function FaceIdIcon() {
@@ -56,6 +57,7 @@ export default function PasskeyLoginButton({
       const data = await verifyRes.json().catch(() => ({}));
       if (!verifyRes.ok) throw new Error(data.error ?? "Connexion refusée.");
       writeSavedLogin({ email: data.email, pinLength: data.pinLength === 6 ? 6 : 8 });
+      markActive();
       window.location.assign("/");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
