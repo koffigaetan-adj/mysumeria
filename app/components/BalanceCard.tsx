@@ -39,13 +39,35 @@ function EyeIcon({ off }: { off: boolean }) {
   );
 }
 
-/** Fait défiler `value` depuis sa précédente valeur affichée (pas au premier rendu). */
-function useAnimatedNumber(value: number, durationMs = 700): number {
-  const [display, setDisplay] = useState(value);
-  const displayRef = useRef(value);
+// Mémorise le dernier solde affiché sur cet appareil, pour que l'animation reste
+// correcte même si le composant est remonté par un rafraîchissement de la page
+// (elle ne se déclenche donc jamais sur un simple F5 : la valeur n'a pas changé).
+const SOLDE_MEMORY_KEY = "sumeria-solde-last";
+
+function readStoredSolde(fallback: number): number {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const stored = window.sessionStorage.getItem(SOLDE_MEMORY_KEY);
+    return stored !== null ? Number(stored) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Fait défiler `value` depuis sa précédente valeur, et compte les changements (pour un flash visuel). */
+function useAnimatedNumber(value: number, durationMs = 700): { display: number; pulse: number } {
+  const [display, setDisplay] = useState(() => readStoredSolde(value));
+  const [pulse, setPulse] = useState(0);
+  const displayRef = useRef(display);
   const frameRef = useRef<number | null>(null);
 
   useEffect(() => {
+    try {
+      window.sessionStorage.setItem(SOLDE_MEMORY_KEY, String(value));
+    } catch {
+      // ignoré : l'animation retombera simplement sur la valeur du serveur
+    }
+
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     const from = displayRef.current;
     const to = value;
@@ -57,6 +79,7 @@ function useAnimatedNumber(value: number, durationMs = 700): number {
       return;
     }
 
+    setPulse((p) => p + 1);
     const start = performance.now();
     function tick(now: number) {
       const t = Math.min(1, (now - start) / durationMs);
@@ -65,6 +88,7 @@ function useAnimatedNumber(value: number, durationMs = 700): number {
       displayRef.current = next;
       setDisplay(next);
       if (t < 1) frameRef.current = requestAnimationFrame(tick);
+      else displayRef.current = to;
     }
     frameRef.current = requestAnimationFrame(tick);
 
@@ -73,7 +97,7 @@ function useAnimatedNumber(value: number, durationMs = 700): number {
     };
   }, [value, durationMs]);
 
-  return display;
+  return { display, pulse };
 }
 
 export default function BalanceCard({
@@ -109,7 +133,7 @@ export default function BalanceCard({
 
   const mask = (s: string) => (hidden ? "••••" : s);
   const delta = stats.prevDebits > 0 ? ((stats.debits - stats.prevDebits) / stats.prevDebits) * 100 : null;
-  const animatedSolde = useAnimatedNumber(soldeEur);
+  const { display: animatedSolde, pulse } = useAnimatedNumber(soldeEur);
 
   return (
     <section className="noise relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-500 via-brand-700 to-brand-900 p-6 text-white shadow-xl shadow-brand-900/30">
@@ -143,7 +167,11 @@ export default function BalanceCard({
           </button>
         </div>
 
-        <p className="mt-2 font-display text-[44px] leading-none tracking-tight">{mask(EUR.format(animatedSolde))}</p>
+        <p className="mt-2 font-display text-[44px] leading-none tracking-tight">
+          <span key={pulse} className={`inline-block ${pulse > 0 ? "solde-pulse" : ""}`}>
+            {mask(EUR.format(animatedSolde))}
+          </span>
+        </p>
         <p className="mt-2 text-sm text-white/75">≈ {mask(XOF.format(animatedSolde * EUR_TO_XOF))}</p>
 
         <div className="mt-5 flex gap-2 text-xs">

@@ -85,6 +85,31 @@ html[data-theme="dark"] [data-scroll-region]::-webkit-scrollbar-thumb:hover {
   background: rgba(93, 181, 173, 0.75);
 }
 
+/* Flash + léger zoom sur le solde quand il change */
+@keyframes solde-pulse {
+  0% {
+    transform: scale(1);
+    text-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+  30% {
+    transform: scale(1.035);
+    text-shadow: 0 0 22px rgba(255, 255, 255, 0.6);
+  }
+  100% {
+    transform: scale(1);
+    text-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+.solde-pulse {
+  transform-origin: left center;
+  animation: solde-pulse 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .solde-pulse {
+    animation: none;
+  }
+}
+
 /* Grain léger, comme sur la carte */
 .noise::after {
   content: "";
