@@ -171,7 +171,14 @@ export async function sendStatementEmail(
      <p style="font-size:13px;color:#64748b;">Le relevé complet est joint en PDF.</p>`
   );
 
-  const pdf = await generateStatementPdf(params);
+  let pdf: Buffer;
+  try {
+    pdf = await generateStatementPdf(params);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[email] Échec de génération du PDF :", e);
+    return { ok: false, error: `Génération du PDF impossible : ${msg}` };
+  }
 
   return send({
     to,

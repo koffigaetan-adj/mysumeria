@@ -5,6 +5,7 @@ import { buildPreviousMonthStatement } from "@/lib/statement";
 import { sendStatementEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 // Même règle d'accès que /api/sync-emails : session valide OU secret cron.
 async function isAuthorized(request: NextRequest): Promise<boolean> {

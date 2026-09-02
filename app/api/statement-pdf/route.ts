@@ -4,6 +4,7 @@ import { buildPeriodStatement } from "@/lib/statement";
 import { generateStatementPdf } from "@/lib/pdf";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 // Protégée par le middleware global (session requise).
 export async function GET(request: NextRequest) {
