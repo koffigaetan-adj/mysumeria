@@ -16,6 +16,7 @@ import SubscriptionsCard from "@/app/components/SubscriptionsCard";
 import SearchBox from "@/app/components/SearchBox";
 import Menu from "@/app/components/Menu";
 import TransactionItem from "@/app/components/TransactionItem";
+import Avatar from "@/app/components/Avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +94,12 @@ export default async function DashboardPage({
 
   const accountName = process.env.BANK_ACCOUNT_NAME;
   const isAdmin = isAdminEmail(session?.email);
+  const profile = session
+    ? await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { firstName: true, lastName: true, avatarDataUrl: true, email: true },
+      })
+    : null;
 
   // Regroupement par jour (la liste est déjà triée par date décroissante)
   const groups: Array<{ key: string; label: string; items: typeof transactions }> = [];
@@ -110,9 +117,17 @@ export default async function DashboardPage({
           <header className="flex items-center justify-between py-4">
             <div>
               <h1 className="font-display text-3xl leading-none">My Sumeria</h1>
-              {accountName && <p className="mt-1 text-xs text-ink-900/50 dark:text-white/50">{accountName}</p>}
+              <p className="mt-1 text-xs text-ink-900/50 dark:text-white/50">
+                {profile?.firstName ? `Bonjour ${profile.firstName}` : accountName}
+                {profile?.firstName && accountName && <> · {accountName}</>}
+              </p>
             </div>
-            <Menu periode={periode} isAdmin={isAdmin} />
+            <div className="flex items-center gap-2">
+              <Link href="/parametres" aria-label="Mon profil" className="rounded-full ring-2 ring-white/60 transition active:scale-95 dark:ring-white/20">
+                <Avatar src={profile?.avatarDataUrl} firstName={profile?.firstName} lastName={profile?.lastName} email={profile?.email} size={44} />
+              </Link>
+              <Menu periode={periode} isAdmin={isAdmin} />
+            </div>
           </header>
 
           <BalanceCard soldeEur={solde} configured={configured} stats={stats} />

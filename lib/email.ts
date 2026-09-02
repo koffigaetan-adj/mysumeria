@@ -105,6 +105,18 @@ export async function sendTransactionNotification(
   await send({ to, subject, html });
 }
 
+/** Lien de réinitialisation du code (valable 30 min, usage unique). */
+export async function sendPasswordResetEmail(to: string, link: string, firstName?: string | null): Promise<SendResult> {
+  const html = wrapEmail(
+    "Réinitialisation de ton code",
+    `<p style="font-size:14px;">${firstName ? `Bonjour ${escapeHtml(firstName)},` : "Bonjour,"}</p>
+     <p style="font-size:14px;">Tu as demandé à changer ton code de connexion. Clique sur le bouton ci-dessous — le lien est valable <strong>30 minutes</strong> et ne peut servir qu'une fois.</p>
+     <p style="margin:20px 0;"><a href="${escapeHtml(link)}" style="display:inline-block;background:#1f8f86;color:#fff;text-decoration:none;padding:12px 20px;border-radius:12px;font-weight:600;">Choisir un nouveau code</a></p>
+     <p style="font-size:12px;color:#64748b;">Si tu n'es pas à l'origine de cette demande, ignore ce mail : ton code actuel reste valable.</p>`
+  );
+  return send({ to: [to], subject: "Réinitialiser mon code — My Sumeria", html });
+}
+
 /** Alerte technique à l'administrateur (synchro en échec, abonnement Gmail non renouvelé…). */
 export async function sendAdminAlert(to: string[], subject: string, detail: string): Promise<SendResult> {
   if (to.length === 0) return { ok: false, error: "Aucun administrateur configuré" };

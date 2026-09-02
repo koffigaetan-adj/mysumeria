@@ -12,6 +12,10 @@ model User {
   id             String    @id @default(cuid())
   email          String    @unique
   pinHash        String
+  // Profil affiché (facultatif) ; la photo est une data URL JPEG ~256 px (quelques dizaines de Ko)
+  firstName      String?
+  lastName       String?
+  avatarDataUrl  String?
   // Longueur du code choisi à la création (6 ou 8 chiffres) : sert à afficher
   // le bon nombre de cases sur la page de connexion.
   pinLength      Int       @default(8)
@@ -29,6 +33,18 @@ model User {
 
   passkeys          Passkey[]
   pushSubscriptions PushSubscription[]
+  resetTokens       PasswordResetToken[]
+}
+
+// Lien "code oublié" : jeton aléatoire envoyé par mail, stocké haché, valable 30 min, usage unique.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 }
 
 // Clé WebAuthn (Face ID / empreinte / Windows Hello) enregistrée sur un appareil.

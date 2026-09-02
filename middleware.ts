@@ -25,6 +25,6 @@ export const config = {
   // /api/gmail/push (webhook Google Pub/Sub, authentifié par ?token=),
   // manifest / icônes / service worker (nécessaires à la PWA avant connexion).
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|login|api/auth/|api/sync-emails|api/monthly-statement|api/gmail/push|manifest.webmanifest|icons/|sw.js|workbox-|worker-).*)",
+    "/((?!_next/static|_next/image|favicon.ico|login|reinitialiser|api/auth/|api/sync-emails|api/monthly-statement|api/gmail/push|manifest.webmanifest|icons/|splash/|sw.js|workbox-|worker-).*)",
   ],
 };

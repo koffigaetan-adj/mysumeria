@@ -6,6 +6,7 @@ import ThemeToggle from "@/app/components/ThemeToggle";
 import PinInput from "@/app/components/PinInput";
 import PasskeySection from "@/app/components/PasskeySection";
 import PushSection from "@/app/components/PushSection";
+import ProfileForm from "@/app/components/ProfileForm";
 import { readSavedLogin, writeSavedLogin } from "@/lib/loginStorage";
 import { XIcon } from "@/app/components/Icons";
 
@@ -20,6 +21,9 @@ type Prefs = {
 type User = Prefs & {
   email: string;
   pinLength: number;
+  firstName: string | null;
+  lastName: string | null;
+  avatarDataUrl: string | null;
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -233,19 +237,16 @@ export default function SettingsForm({
       </Section>
 
       <Section title="Profil">
-        <p className="text-sm">
-          <span className="text-ink-900/50 dark:text-white/50">Email : </span>
-          {user.email}
-        </p>
-        <p className="mt-1 text-sm">
-          <span className="text-ink-900/50 dark:text-white/50">Code actuel : </span>
+        <ProfileForm user={{ email: user.email, firstName: user.firstName, lastName: user.lastName, avatarDataUrl: user.avatarDataUrl }} />
+
+        <p className="mt-4 border-t border-ink-900/10 pt-3 text-sm dark:border-white/10">
+          <span className="text-ink-900/50 dark:text-white/50">Code de connexion : </span>
           {pinLength} chiffres
         </p>
-
         <button
           type="button"
           onClick={openPinModal}
-          className="mt-3 w-full rounded-2xl bg-ink-900/5 py-3 text-sm font-medium transition hover:bg-ink-900/10 dark:bg-white/10 dark:hover:bg-white/15"
+          className="mt-2 w-full rounded-2xl bg-ink-900/5 py-3 text-sm font-medium transition hover:bg-ink-900/10 dark:bg-white/10 dark:hover:bg-white/15"
         >
           Modifier mon code
         </button>

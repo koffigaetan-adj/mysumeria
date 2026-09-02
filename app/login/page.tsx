@@ -34,9 +34,9 @@ export default function LoginPage() {
 
   // Email mémorisé → champ grisé, et nombre de cases connu tout de suite.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("verrouille") === "1") {
-      setInfo("Session verrouillée après 30 min d'inactivité — reconnecte-toi.");
-    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("verrouille") === "1") setInfo("Session verrouillée après 30 min d'inactivité — reconnecte-toi.");
+    if (params.get("reinitialise") === "1") setInfo("Nouveau code enregistré — connecte-toi avec.");
     const saved = readSavedLogin();
     if (!saved) return;
     setEmail(saved.email);
@@ -51,6 +51,29 @@ export default function LoginPage() {
     if (length !== pinLength) {
       setPinLength(length);
       setPin("");
+    }
+  }
+
+  const [forgotBusy, setForgotBusy] = useState(false);
+
+  async function forgot() {
+    if (!email.includes("@")) {
+      setError("Indique d'abord ton adresse email.");
+      return;
+    }
+    setForgotBusy(true);
+    setError(null);
+    try {
+      await fetch("/api/auth/forgot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      setInfo(`Si un compte existe pour ${email}, un lien de réinitialisation vient d'être envoyé (valable 30 min). Pense à vérifier les spams.`);
+    } catch {
+      setError("Erreur réseau, réessaie.");
+    } finally {
+      setForgotBusy(false);
     }
   }
 
@@ -152,6 +175,15 @@ export default function LoginPage() {
         </button>
 
         <PasskeyLoginButton email={email} disabled={loading} onError={setError} />
+
+        <button
+          type="button"
+          onClick={forgot}
+          disabled={forgotBusy || loading}
+          className="py-1 text-center text-sm text-ink-900/50 underline-offset-2 hover:underline disabled:opacity-50 dark:text-white/50"
+        >
+          {forgotBusy ? "Envoi…" : "Code oublié ?"}
+        </button>
       </form>
 
       {info && !error && (

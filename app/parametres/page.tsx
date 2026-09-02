@@ -20,6 +20,9 @@ export default async function ParametresPage() {
       select: {
         email: true,
         pinLength: true,
+        firstName: true,
+        lastName: true,
+        avatarDataUrl: true,
         notifyOnTransaction: true,
         pushOnTransaction: true,
         monthlyStatement: true,
