@@ -10,105 +10,171 @@ export type ParsedTransaction = {
   compteName: string | null;
 };
 
+// Montant : "1,50", "12", "1 234,56" (espaces, espaces insécables), avec ou sans décimales
+const AMOUNT = String.raw`(\d[\d\s  ]*(?:[.,]\d{1,2})?)\s*(?:€|EUR|euros?)`;
+// Fin d'un motif : on s'arrête avant la mention de la carte / du moyen de paiement, ou une ponctuation forte
+const MOTIF_END = String.raw`(?=[.,;](?:\s|$)|\s+(?:avec (?:la|votre|ta) carte|par carte|via|avec apple pay|avec google pay|le paiement|la somme|depuis|sur (?:votre|le|ton) compte|$))`;
+
+/** Nettoie un motif capturé : espaces et ponctuation de fin. */
+function cleanMotif(raw: string): string {
+  return raw.trim().replace(/[\s.,;:]+$/, "");
+}
+
 function parseMontant(raw: string): number {
-  return parseFloat(raw.replace(/\s/g, "").replace(",", "."));
+  return parseFloat(raw.replace(/[\s  ]/g, "").replace(",", "."));
 }
 
 /**
- * Le template Sumeria pour un virement est le même que la transaction soit
- * entrante ou sortante : seuls les rôles "compte crédité" / "compte débité"
- * sont inversés. Il faut donc savoir lequel des deux est BANK_ACCOUNT_NAME
- * pour déterminer si c'est un CREDIT (reçu) ou un DEBIT (envoyé).
+ * Met le texte de l'email sur une seule ligne : retours à la ligne, lignes de
+ * séparation (-----, =====, ____) et espaces multiples deviennent un espace simple.
+ * Les matchers travaillent sur ce texte, quel que soit le format d'origine (texte brut ou HTML aplati).
  */
-function resolveVirementDirection(
-  sourceCompte: string | null,
-  targetCompte: string,
-  targetAccountEnv: string | undefined
-): { type: "CREDIT" | "DEBIT"; compteName: string; motif: string } | null {
-  if (!targetAccountEnv) return null; // aucun filtre configuré : impossible de savoir quel côté est le nôtre
+export function normalizeEmailText(text: string): string {
+  return text
+    .replace(/[  ]/g, " ")
+    .replace(/[-=_*]{3,}/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  if (isTargetAccount(sourceCompte, targetAccountEnv)) {
-    return {
-      type: "DEBIT",
-      compteName: sourceCompte!,
-      motif: `Virement vers « ${targetCompte} »`,
-    };
-  }
-  if (isTargetAccount(targetCompte, targetAccountEnv)) {
-    return {
-      type: "CREDIT",
-      compteName: targetCompte,
-      motif: sourceCompte ? `Virement depuis « ${sourceCompte} »` : "Virement reçu",
-    };
-  }
-  return null; // virement entre deux comptes qui ne sont ni l'un ni l'autre le nôtre
+/** Coupe le corps en partie principale / pied de page ("Pourquoi je reçois cet email ?"). */
+function splitFooter(text: string): { main: string; footer: string } {
+  const idx = text.search(/Pourquoi je re[cç]ois cet e-?mail/i);
+  return idx === -1 ? { main: text, footer: "" } : { main: text.slice(0, idx), footer: text.slice(idx) };
 }
 
 /**
- * Virement (reçu ou envoyé), ex :
- * "Virement confirmé + 2,00 € sur « Compte courant Julienne ». Le virement a été
- *  exécuté instantanément depuis votre compte « Compte Courant »." (reçu)
- * "Virement confirmé + 2,00 € sur « Compte Courant ». Le virement a été
- *  exécuté instantanément depuis votre compte « Compte courant Julienne »." (envoyé)
+ * Compte concerné : d'abord une mention explicite dans le corps ("prélevée sur votre
+ * compte « X »", "sur votre compte « X »"), sinon le compte sur lequel l'alerte est
+ * activée (pied de page) — les alertes Sumeria étant configurées par compte.
  */
-function matchVirement(body: string, targetAccountEnv: string | undefined): ParsedTransaction | null {
-  const m = body.match(/\+\s*([\d]+(?:[.,]\d{2})?)\s*€\s*sur\s*«\s*([^»]+?)\s*»/i);
+function detectAccount(main: string, footer: string): string | null {
+  const explicit =
+    main.match(/(?:prélevée?|débitée?|créditée?|reçue?|versée?)\s+sur\s+(?:votre|ton|le)\s+compte\s*«\s*([^»]+?)\s*»/i) ??
+    main.match(/(?:sur|depuis)\s+(?:votre|ton|le)\s+compte\s*«\s*([^»]+?)\s*»/i);
+  if (explicit) return explicit[1].trim();
+  const alert = footer.match(/activée?\s+sur\s+(?:votre|ton|le)\s+compte\s*«\s*([^»]+?)\s*»/i);
+  return alert ? alert[1].trim() : null;
+}
+
+type Matcher = (main: string, footer: string, targetAccountEnv: string | undefined) => ParsedTransaction | null;
+
+/**
+ * Virement entre comptes Sumeria (reçu ou envoyé) — même template dans les deux sens :
+ * "+ 2,00 € sur « Compte courant Julienne ». … depuis votre compte « Compte Courant »."
+ * Le sens est déduit en comparant les deux comptes cités à BANK_ACCOUNT_NAME.
+ */
+const matchVirementInterne: Matcher = (main, _footer, targetAccountEnv) => {
+  const m = main.match(new RegExp(String.raw`\+\s*${AMOUNT}\s*sur\s*«\s*([^»]+?)\s*»`, "i"));
   if (!m) return null;
-
+  const montant = parseMontant(m[1]);
   const targetCompte = m[2].trim();
-  const sourceMatch = body.match(/depuis votre compte\s*«\s*([^»]+?)\s*»/i);
-  const sourceCompte = sourceMatch ? sourceMatch[1].trim() : null;
+  const source = main.match(/depuis\s+(?:votre|ton|le)\s+compte\s*«\s*([^»]+?)\s*»/i);
+  const sourceCompte = source ? source[1].trim() : null;
 
-  const direction = resolveVirementDirection(sourceCompte, targetCompte, targetAccountEnv);
-
+  if (targetAccountEnv && isTargetAccount(sourceCompte, targetAccountEnv)) {
+    return { montant, type: "DEBIT", motif: `Virement vers « ${targetCompte} »`, date: new Date(0), compteName: sourceCompte };
+  }
   return {
-    montant: parseMontant(m[1]),
-    date: new Date(0), // remplacé par receivedAt dans parseBankEmail
-    ...(direction ?? {
-      type: "CREDIT",
-      motif: sourceCompte ? `Virement depuis « ${sourceCompte} »` : "Virement reçu",
-      compteName: targetCompte,
-    }),
+    montant,
+    type: "CREDIT",
+    motif: sourceCompte ? `Virement depuis « ${sourceCompte} »` : "Virement reçu",
+    date: new Date(0),
+    compteName: targetCompte,
   };
-}
+};
 
-/**
- * Paiement par carte, ex :
- * "Vous avez réglé 17,18 € à ANTHROPIC* CLAUDE SUB avec la carte « Carte Sans Contact »
- *  [...] La somme a été prélevée sur votre compte « Compte courant Julienne »."
- */
-function matchPaiementCarte(body: string, _targetAccountEnv: string | undefined): ParsedTransaction | null {
-  const m = body.match(/Vous avez réglé\s+([\d]+(?:[.,]\d{2})?)\s*€\s*à\s+(.+?)\s+avec la carte/i);
+/** Paiement par carte : "Vous avez réglé 1,50 € à DIAGONAL avec la carte « … »" (sans contact, en ligne, Apple Pay…). */
+const matchPaiementCarte: Matcher = (main, footer) => {
+  const m =
+    main.match(new RegExp(String.raw`Vous avez (?:réglé|payé|dépensé)\s+${AMOUNT}\s+(?:à|chez|auprès de)\s+(.+?)${MOTIF_END}`, "i")) ??
+    main.match(new RegExp(String.raw`(?:Paiement|Achat)\s+de\s+${AMOUNT}\s+(?:à|chez|auprès de)\s+(.+?)${MOTIF_END}`, "i"));
   if (!m) return null;
+  return { montant: parseMontant(m[1]), type: "DEBIT", motif: cleanMotif(m[2]), date: new Date(0), compteName: detectAccount(main, footer) };
+};
 
-  const compte = body.match(/prélevée sur (?:votre compte|«)\s*«?\s*([^»]+?)\s*»/i);
-
+/** Retrait d'espèces : "Vous avez retiré 50 € …" / "Retrait de 50 € …". */
+const matchRetrait: Matcher = (main, footer) => {
+  const m =
+    main.match(new RegExp(String.raw`Vous avez retiré\s+${AMOUNT}`, "i")) ??
+    main.match(new RegExp(String.raw`Retrait\s+(?:de\s+)?${AMOUNT}`, "i"));
+  if (!m) return null;
+  const where = main.match(/(?:au|à|chez)\s+(?:distributeur|DAB|guichet)?\s*(.+?)(?=\s+(?:avec|le retrait|la somme|\.|$))/i);
   return {
     montant: parseMontant(m[1]),
     type: "DEBIT",
-    motif: m[2].trim(),
-    date: new Date(0), // remplacé par receivedAt dans parseBankEmail
-    compteName: compte ? compte[1].trim() : null,
+    motif: where && cleanMotif(where[1]).length > 2 ? `Retrait ${cleanMotif(where[1])}` : "Retrait d'espèces",
+    date: new Date(0),
+    compteName: detectAccount(main, footer),
   };
-}
+};
 
-const MATCHERS = [matchVirement, matchPaiementCarte];
+/** Prélèvement : "Prélèvement de 9,99 € par NETFLIX" / "NETFLIX a prélevé 9,99 €" / "Un prélèvement de … de NETFLIX". */
+const matchPrelevement: Matcher = (main, footer) => {
+  const m =
+    main.match(new RegExp(String.raw`Pr[ée]l[èe]vement\s+(?:de\s+)?${AMOUNT}\s+(?:par|de|pour|au profit de)\s+(.+?)${MOTIF_END}`, "i")) ??
+    main.match(new RegExp(String.raw`(.+?)\s+a\s+prélevé\s+${AMOUNT}`, "i"));
+  if (!m) return null;
+  // Selon la forme, le motif est en groupe 2 ou en groupe 1
+  const [montantRaw, motif] = /prélevé/i.test(m[0]) && !/^Pr[ée]l/i.test(m[0]) ? [m[2], m[1]] : [m[1], m[2]];
+  return { montant: parseMontant(montantRaw), type: "DEBIT", motif: `Prélèvement ${cleanMotif(motif)}`, date: new Date(0), compteName: detectAccount(main, footer) };
+};
+
+/** Remboursement : "Vous avez été remboursé de 12 € par AMAZON" / "Remboursement de 12 € de AMAZON". */
+const matchRemboursement: Matcher = (main, footer) => {
+  const m =
+    main.match(new RegExp(String.raw`rembours[ée]e?\s+(?:de\s+)?${AMOUNT}\s+(?:par|de)\s+(.+?)${MOTIF_END}`, "i")) ??
+    main.match(new RegExp(String.raw`Remboursement\s+(?:de\s+)?${AMOUNT}(?:\s+(?:par|de)\s+(.+?)${MOTIF_END})?`, "i"));
+  if (!m) return null;
+  return {
+    montant: parseMontant(m[1]),
+    type: "CREDIT",
+    motif: m[2] ? `Remboursement ${cleanMotif(m[2])}` : "Remboursement",
+    date: new Date(0),
+    compteName: detectAccount(main, footer),
+  };
+};
+
+/** Virement reçu d'un tiers : "Vous avez reçu 50 € de Marie" / "Marie vous a envoyé 50 €". */
+const matchVirementRecu: Matcher = (main, footer) => {
+  const m =
+    main.match(new RegExp(String.raw`Vous avez reçu\s+${AMOUNT}(?:\s+(?:de|de la part de)\s+(.+?)${MOTIF_END})?`, "i")) ??
+    main.match(new RegExp(String.raw`(.+?)\s+vous a envoyé\s+${AMOUNT}`, "i"));
+  if (!m) return null;
+  const isSecondForm = /vous a envoyé/i.test(m[0]);
+  const montant = parseMontant(isSecondForm ? m[2] : m[1]);
+  const fromRaw = isSecondForm ? m[1] : m[2];
+  const from = fromRaw ? cleanMotif(fromRaw) : undefined;
+  return { montant, type: "CREDIT", motif: from ? `Virement de ${from}` : "Virement reçu", date: new Date(0), compteName: detectAccount(main, footer) };
+};
+
+/** Virement envoyé à un tiers : "Vous avez envoyé 50 € à Marie" / "Virement de 50 € vers Marie". */
+const matchVirementEnvoye: Matcher = (main, footer) => {
+  const m =
+    main.match(new RegExp(String.raw`Vous avez (?:envoyé|viré|transféré)\s+${AMOUNT}\s+(?:à|vers|au profit de)\s+(.+?)${MOTIF_END}`, "i")) ??
+    main.match(new RegExp(String.raw`Virement\s+(?:de\s+)?${AMOUNT}\s+(?:vers|à|au profit de)\s+(.+?)${MOTIF_END}`, "i"));
+  if (!m) return null;
+  return { montant: parseMontant(m[1]), type: "DEBIT", motif: `Virement vers ${cleanMotif(m[2])}`, date: new Date(0), compteName: detectAccount(main, footer) };
+};
+
+// Ordre : du plus spécifique au plus générique (le virement interne d'abord, il a un template unique).
+const MATCHERS: Matcher[] = [
+  matchVirementInterne,
+  matchPaiementCarte,
+  matchRetrait,
+  matchPrelevement,
+  matchRemboursement,
+  matchVirementRecu,
+  matchVirementEnvoye,
+];
 
 /**
  * Parse le contenu d'un email d'alerte bancaire Sumeria.
  *
- * Formats reconnus pour l'instant :
- * - Virement reçu ou envoyé ("Virement confirmé")
- * - Paiement par carte ("Vous avez réglé ... à ... avec la carte")
- * D'autres formats (prélèvement, etc.) seront ajoutés au fur et à mesure,
- * à partir d'exemples réels stockés dans UnparsedEmail.
- *
  * @param subject          Sujet de l'email
- * @param body             Corps texte de l'email (déjà décodé, HTML retiré)
- * @param receivedAt       Date de réception de l'email, utilisée comme date de transaction
- * @param targetAccountEnv BANK_ACCOUNT_NAME — nécessaire pour déterminer le sens
- *                         (CREDIT/DEBIT) d'un virement, qui utilise le même
- *                         template que la transaction soit entrante ou sortante.
+ * @param body             Corps de l'email (texte brut ou HTML aplati — normalisé ici)
+ * @param receivedAt       Date de réception, utilisée comme date de transaction
+ * @param targetAccountEnv BANK_ACCOUNT_NAME — nécessaire pour déterminer le sens d'un virement interne
  */
 export function parseBankEmail(
   subject: string,
@@ -116,27 +182,31 @@ export function parseBankEmail(
   receivedAt: Date,
   targetAccountEnv: string | undefined
 ): ParsedTransaction | null {
-  void subject;
+  if (describeNonTransactionAlert(subject, body)) return null;
 
+  const { main, footer } = splitFooter(normalizeEmailText(`${subject} ${body}`));
   for (const matcher of MATCHERS) {
-    const result = matcher(body, targetAccountEnv);
-    if (result) return { ...result, date: receivedAt };
+    const result = matcher(main, footer, targetAccountEnv);
+    if (result && Number.isFinite(result.montant) && result.montant > 0) {
+      return { ...result, date: receivedAt };
+    }
   }
-
   return null;
 }
 
 /**
  * Alertes Sumeria qui ne correspondent à aucun mouvement d'argent (paiement refusé,
- * plafond, etc.). On les reconnaît pour les classer avec une raison explicite plutôt
- * que "non reconnu par le parseur".
+ * plafond, etc.). Reconnues pour être classées avec une raison explicite.
  */
 export function describeNonTransactionAlert(subject: string, body: string): string | null {
-  const text = `${subject} ${body}`;
+  const text = normalizeEmailText(`${subject} ${body}`);
   if (/solde insuffisant/i.test(text)) return "Alerte sans mouvement : paiement refusé (solde insuffisant)";
-  if (/paiement refus|transaction refus|carte refus/i.test(text)) return "Alerte sans mouvement : paiement refusé";
+  if (/paiement refus|transaction refus|carte refus|a été refusé/i.test(text)) return "Alerte sans mouvement : paiement refusé";
   if (/plafond/i.test(text)) return "Alerte sans mouvement : plafond de carte";
   if (/code (pin|secret) (erron|incorrect)/i.test(text)) return "Alerte sans mouvement : code carte erroné";
+  if (/carte (?:bloquée|désactivée|activée|commandée|expédiée|virtuelle)|apple pay|google pay/i.test(text)) return "Information : carte (pas un mouvement)";
+  if (/mot de passe|accéder à sumeria|code de connexion|nouvel appareil/i.test(text)) return "Information : sécurité du compte (pas un mouvement)";
+  if (/nouveau compte ouvert|bienvenue|compte (?:a été )?(?:ouvert|créé|clôturé)/i.test(text)) return "Information : compte (pas un mouvement)";
   return null;
 }
 
@@ -153,8 +223,7 @@ function normalizeAccountName(name: string): string {
 /**
  * Vérifie si une transaction parsée concerne le sous-compte suivi (BANK_ACCOUNT_NAME).
  * - Pas de filtre configuré → tout est accepté.
- * - Filtre configuré mais compte non détecté dans l'email → rejeté par prudence
- *   (évite de fausser le solde en devinant).
+ * - Filtre configuré mais compte non détecté → rejeté par prudence (évite de fausser le solde).
  */
 export function isTargetAccount(compteName: string | null, targetAccountEnv: string | undefined): boolean {
   if (!targetAccountEnv) return true;

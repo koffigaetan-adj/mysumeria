@@ -164,6 +164,49 @@ export async function syncEmails(): Promise<SyncResult> {
   };
 }
 
+/**
+ * Repasse le parseur (mis à jour) sur les emails ignorés : ceux qui sont maintenant
+ * reconnus deviennent des transactions et quittent la liste ; les autres voient leur
+ * raison actualisée. Utilisé par le bouton « Réessayer » et par les scripts de maintenance.
+ */
+export async function retryUnparsedEmails(): Promise<{ total: number; converted: number; remaining: number }> {
+  const targetAccount = process.env.BANK_ACCOUNT_NAME;
+  const emails = await prisma.unparsedEmail.findMany({ orderBy: { receivedAt: "asc" } });
+
+  let converted = 0;
+  for (const email of emails) {
+    const parsed = parseBankEmail(email.subject, email.body, email.receivedAt, targetAccount);
+    const reason = !parsed
+      ? (describeNonTransactionAlert(email.subject, email.body) ?? "Email non reconnu par le parseur")
+      : !parsed.compteName
+        ? "Compte non détecté dans l'email"
+        : !isTargetAccount(parsed.compteName, targetAccount)
+          ? `Transaction sur un autre compte : « ${parsed.compteName} »`
+          : null;
+
+    if (parsed && reason === null) {
+      await prisma.$transaction([
+        prisma.transaction.create({
+          data: {
+            date: parsed.date,
+            montant: parsed.montant,
+            type: parsed.type,
+            motif: parsed.motif,
+            sourceEmailId: email.sourceEmailId,
+            rawEmailSnippet: email.snippet,
+          },
+        }),
+        prisma.unparsedEmail.delete({ where: { id: email.id } }),
+      ]);
+      converted++;
+    } else if (reason !== email.reason) {
+      await prisma.unparsedEmail.update({ where: { id: email.id }, data: { reason } });
+    }
+  }
+
+  return { total: emails.length, converted, remaining: emails.length - converted };
+}
+
 /** Vrai si la détection instantanée (Gmail → Pub/Sub → /api/gmail/push) est configurée. */
 export function isInstantSyncConfigured(): boolean {
   return Boolean(process.env.GMAIL_PUBSUB_TOPIC);

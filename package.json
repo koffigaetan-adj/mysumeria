@@ -13,6 +13,7 @@
     "user:create": "tsx scripts/create-user.ts",
     "balance:set": "tsx scripts/set-initial-balance.ts",
     "email:check": "node scripts/check-smtp.mjs",
+    "parse:test": "tsx scripts/test-parse.mts",
     "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
