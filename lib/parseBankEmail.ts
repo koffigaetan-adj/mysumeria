@@ -37,7 +37,19 @@ export function normalizeEmailText(text: string): string {
     .trim();
 }
 
-/** Coupe le corps en partie principale / pied de page ("Pourquoi je reçois cet email ?"). */
+/**
+ * Coupe le pied de page légal universel ("Une question ? Un problème ?", mentions Lydia
+ * Solutions/ACPR/RCS…), présent sur TOUS les emails Sumeria quel que soit leur template.
+ * Indispensable avant toute détection par mots-clés : ce pied de page contient des
+ * formulations trompeuses (ex. "vous avez un compte ouvert dans les livres de Lydia
+ * Solutions" contient littéralement "compte ouvert").
+ */
+function stripLegalFooter(text: string): string {
+  const idx = text.search(/Une question\s*\?\s*Un problème\s*\?|Cet email traite d.une information importante/i);
+  return idx === -1 ? text : text.slice(0, idx);
+}
+
+/** Coupe la partie principale / l'explication d'alerte ("Pourquoi je reçois cet email ?"). */
 function splitFooter(text: string): { main: string; footer: string } {
   const idx = text.search(/Pourquoi je re[cç]ois cet e-?mail/i);
   return idx === -1 ? { main: text, footer: "" } : { main: text.slice(0, idx), footer: text.slice(idx) };
@@ -184,7 +196,7 @@ export function parseBankEmail(
 ): ParsedTransaction | null {
   if (describeNonTransactionAlert(subject, body)) return null;
 
-  const { main, footer } = splitFooter(normalizeEmailText(`${subject} ${body}`));
+  const { main, footer } = splitFooter(stripLegalFooter(normalizeEmailText(`${subject} ${body}`)));
   for (const matcher of MATCHERS) {
     const result = matcher(main, footer, targetAccountEnv);
     if (result && Number.isFinite(result.montant) && result.montant > 0) {
@@ -199,14 +211,18 @@ export function parseBankEmail(
  * plafond, etc.). Reconnues pour être classées avec une raison explicite.
  */
 export function describeNonTransactionAlert(subject: string, body: string): string | null {
-  const text = normalizeEmailText(`${subject} ${body}`);
+  const text = stripLegalFooter(normalizeEmailText(`${subject} ${body}`));
   if (/solde insuffisant/i.test(text)) return "Alerte sans mouvement : paiement refusé (solde insuffisant)";
   if (/paiement refus|transaction refus|carte refus|a été refusé/i.test(text)) return "Alerte sans mouvement : paiement refusé";
   if (/plafond/i.test(text)) return "Alerte sans mouvement : plafond de carte";
   if (/code (pin|secret) (erron|incorrect)/i.test(text)) return "Alerte sans mouvement : code carte erroné";
   if (/carte (?:bloquée|désactivée|activée|commandée|expédiée|virtuelle)|apple pay|google pay/i.test(text)) return "Information : carte (pas un mouvement)";
   if (/mot de passe|accéder à sumeria|code de connexion|nouvel appareil/i.test(text)) return "Information : sécurité du compte (pas un mouvement)";
-  if (/nouveau compte ouvert|bienvenue|compte (?:a été )?(?:ouvert|créé|clôturé)/i.test(text)) return "Information : compte (pas un mouvement)";
+  // Volontairement précis (pas de "compte ... ouvert/créé" générique) : le pied de page
+  // légal (déjà retiré ci-dessus par sécurité) contient "un compte ouvert dans les livres
+  // de Lydia Solutions" sur CHAQUE email — un motif générique s'y ferait piéger.
+  if (/nouveau compte ouvert|bienvenue|confirmation d.ouverture de (?:votre|ton) compte|nouvel? iban/i.test(text))
+    return "Information : compte (pas un mouvement)";
   return null;
 }
 
